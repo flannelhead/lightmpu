@@ -1,6 +1,8 @@
 // Implements configuring and reading a MPU-6050 motion sensor as a lightweight
 // C library for Arduino. Also contains a complementary filter for obtaining
 // pitch and roll angles from the raw data.
+//
+// TODO: compare this with the DMP results
 
 #ifndef LIGHTMPU_H
 #define LIGHTMPU_H
@@ -95,13 +97,8 @@ const mpuconfig MPU_DEFAULT_CONFIG = {
 };
 
 struct mpudata {
-    int16_t accX,
-            accY,
-            accZ,
-            temp,
-            gyroX,
-            gyroY,
-            gyroZ;
+    int16_t accX, accY, accZ, temp,
+        gyroX, gyroY, gyroZ;
 };
 
 int mpuWriteRegister(const int addr, const uint8_t reg, const uint8_t value,
@@ -153,11 +150,16 @@ int mpuSetup(const int addr, const mpuconfig * const config) {
     return status;
 }
 
+// Pitch and roll calculation by means of the complementary filter
+// NOTE: while this code doesn't depend on the DMP or the FIFO buffer,
+// you should be aware that the processor does have to keep up with the
+// sample rate in order for the calculations to be accurate.
+
 const int MPU_GYRO_RANGE[] = { 250, 500, 1000, 2000 };
 void mpuSetupFilter(const mpuconfig * const config, mpufilter * const filter,
     const float filterParam = 0.08) {
-    filter->dt = (1 + config->sampleRateDivider) /
-        (config->lowpass != 0 ? 1000.0 : 8000.0);
+    filter->dt = (float)(1 + config->sampleRateDivider) /
+        (config->lowpass != 0 ? 1000 : 8000);
     filter->gyroSensitivity =
         32768 / (MPU_GYRO_RANGE[config->gyroRange] / 180 * PI);
     filter->gyroFactor = filter->dt / filter->gyroSensitivity;
