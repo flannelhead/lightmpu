@@ -121,6 +121,25 @@ int mpuReadRegisters(const uint8_t addr, const uint8_t firstReg,
     return 0;
 }
 
+int mpuReadIntStatus(const uint8_t addr) {
+    uint8_t tmp;
+    mpuReadRegisters(addr, MPU_INT_STATUS, 1, &tmp);
+    return tmp;
+}
+
+int mpuReadRawData(const uint8_t addr, int16_t * const data) {
+    int status;
+    Wire.beginTransmission(addr);
+    if (Wire.write(MPU_ACCEL_XOUT_H) != 1) return -1;
+    status = Wire.endTransmission(false);
+    if (status != 0) return status;
+    if (Wire.requestFrom(addr, (uint8_t)14, (uint8_t)true) != 14) return -2;
+    for (uint8_t i = 0; i < 7; i++) {
+        data[i] = Wire.read() << 8 | Wire.read();
+    }
+    return 0;
+}
+
 int mpuSetup(const int addr, const mpuconfig * const config) {
     int status;
     // Wake up and disable temperature measurement if asked for
@@ -186,25 +205,6 @@ void mpuUpdateRoll(mpufilter * const filter, int16_t * const data,
     *roll = (1 - filter->filterParam) *
         (*roll + filter->gyroFactor * data[MPU_GYRO_X])
         + filter->filterParam * accPitch;
-}
-
-int mpuReadIntStatus(const uint8_t addr) {
-    uint8_t tmp;
-    mpuReadRegisters(addr, MPU_INT_STATUS, 1, &tmp);
-    return tmp;
-}
-
-int mpuReadRawData(const uint8_t addr, int16_t * const data) {
-    int status;
-    Wire.beginTransmission(addr);
-    if (Wire.write(MPU_ACCEL_XOUT_H) != 1) return -1;
-    status = Wire.endTransmission(false);
-    if (status != 0) return status;
-    if (Wire.requestFrom(addr, (uint8_t)14, (uint8_t)true) != 14) return -2;
-    for (uint8_t i = 0; i < 7; i++) {
-        data[i] = Wire.read() << 8 | Wire.read();
-    }
-    return 0;
 }
 
 #endif
