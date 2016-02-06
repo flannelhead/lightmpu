@@ -1,8 +1,6 @@
 // Implements configuring and reading a MPU-6050 motion sensor as a lightweight
 // C library for Arduino. Also contains a complementary filter for obtaining
 // pitch and roll angles from the raw data.
-//
-// TODO: optimize the calculations
 
 #ifndef LIGHTMPU_H
 #define LIGHTMPU_H
@@ -83,14 +81,15 @@ struct mpuconfig {
 struct mpufilter {
     float dt;
     uint16_t gyroSensitivity;
+    float gyroFactor;
     float filterParam;
 };
 
 const mpuconfig MPU_DEFAULT_CONFIG = {
     .disableTemp = true,
-    .lowpass = 3,
+    .lowpass = 6,
     .sampleRateDivider = 4,
-    .gyroRange = 0,
+    .gyroRange = 3,
     .accelRange = 3,
     .enableInterrupt = true
 };
@@ -161,6 +160,7 @@ void mpuSetupFilter(const mpuconfig * const config, mpufilter * const filter,
         (config->lowpass != 0 ? 1000.0 : 8000.0);
     filter->gyroSensitivity =
         32768 / (MPU_GYRO_RANGE[config->gyroRange] / 180 * PI);
+    filter->gyroFactor = filter->dt / filter->gyroSensitivity;
     filter->filterParam = filterParam;
 }
 
@@ -171,7 +171,7 @@ void mpuUpdatePitch(mpufilter * const filter, int16_t * const data,
     if (sqr == 0) return;
     float accPitch = atan2(data[MPU_ACC_X], sqr);
     *pitch = (1 - filter->filterParam) *
-        (*pitch + filter->dt * data[MPU_GYRO_Y] / filter->gyroSensitivity)
+        (*pitch + filter->gyroFactor * data[MPU_GYRO_Y])
         + filter->filterParam * accPitch;
 }
 
@@ -182,7 +182,7 @@ void mpuUpdateRoll(mpufilter * const filter, int16_t * const data,
     if (sqr == 0) return;
     float accPitch = atan2(data[MPU_ACC_Y], sqr);
     *roll = (1 - filter->filterParam) *
-        (*roll + filter->dt * data[MPU_GYRO_X] / filter->gyroSensitivity)
+        (*roll + filter->gyroFactor * data[MPU_GYRO_X])
         + filter->filterParam * accPitch;
 }
 
