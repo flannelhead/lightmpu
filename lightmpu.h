@@ -101,7 +101,7 @@ struct mpudata {
         gyroX, gyroY, gyroZ;
 };
 
-int mpuWriteRegister(const int addr, const uint8_t reg, const uint8_t value,
+int mpuWriteRegister(const uint8_t addr, const uint8_t reg, const uint8_t value,
     const bool stop) {
     Wire.beginTransmission(addr);
     if (Wire.write(reg) != 1) return -1;
@@ -140,7 +140,7 @@ int mpuReadRawData(const uint8_t addr, int16_t * const data) {
     return 0;
 }
 
-int mpuSetup(const int addr, const mpuconfig * const config) {
+int mpuSetup(const uint8_t addr, const mpuconfig * const config) {
     int status;
     // Wake up and disable temperature measurement if asked for
     status = mpuWriteRegister(addr, MPU_PWR_MGMT_1,
