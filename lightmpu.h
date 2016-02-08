@@ -190,7 +190,7 @@ void mpuUpdatePitch(mpufilter * const filter, int16_t * const data,
     int32_t sqr = sqrt((int32_t)data[MPU_ACC_Y] * data[MPU_ACC_Y] +
         (int32_t)data[MPU_ACC_Z] * data[MPU_ACC_Z]);
     if (sqr == 0) return;
-    float accPitch = atan2(data[MPU_ACC_X], sqr);
+    float accPitch = atan(data[MPU_ACC_X] / sqr);
     *pitch = (1 - filter->filterParam) *
         (*pitch + filter->gyroFactor * data[MPU_GYRO_Y])
         + filter->filterParam * accPitch;
@@ -201,7 +201,7 @@ void mpuUpdateRoll(mpufilter * const filter, int16_t * const data,
     int32_t sqr = sqrt((int32_t)data[MPU_ACC_X] * data[MPU_ACC_X] +
         (int32_t)data[MPU_ACC_Z] * data[MPU_ACC_Z]);
     if (sqr == 0) return;
-    float accPitch = atan2(data[MPU_ACC_Y], sqr);
+    float accPitch = atan(data[MPU_ACC_Y] / sqr);
     *roll = (1 - filter->filterParam) *
         (*roll + filter->gyroFactor * data[MPU_GYRO_X])
         + filter->filterParam * accPitch;
