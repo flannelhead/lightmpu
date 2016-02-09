@@ -187,9 +187,9 @@ void mpuSetupFilter(const mpuconfig * const config, mpufilter * const filter,
 
 void mpuUpdatePitch(mpufilter * const filter, int16_t * const data,
     float * const pitch) {
-    int32_t sqr = sqrt((int32_t)data[MPU_ACC_Y] * data[MPU_ACC_Y] +
+    float sqr = sqrt((int32_t)data[MPU_ACC_Y] * data[MPU_ACC_Y] +
         (int32_t)data[MPU_ACC_Z] * data[MPU_ACC_Z]);
-    if (sqr == 0) return;
+    if (sqr == 0.f) return;
     float accPitch = atan(data[MPU_ACC_X] / sqr);
     *pitch = (1 - filter->filterParam) *
         (*pitch + filter->gyroFactor * data[MPU_GYRO_Y])
@@ -198,9 +198,9 @@ void mpuUpdatePitch(mpufilter * const filter, int16_t * const data,
 
 void mpuUpdateRoll(mpufilter * const filter, int16_t * const data,
     float * const roll) {
-    int32_t sqr = sqrt((int32_t)data[MPU_ACC_X] * data[MPU_ACC_X] +
+    float sqr = sqrt((int32_t)data[MPU_ACC_X] * data[MPU_ACC_X] +
         (int32_t)data[MPU_ACC_Z] * data[MPU_ACC_Z]);
-    if (sqr == 0) return;
+    if (sqr == 0.f) return;
     float accPitch = atan(data[MPU_ACC_Y] / sqr);
     *roll = (1 - filter->filterParam) *
         (*roll + filter->gyroFactor * data[MPU_GYRO_X])
