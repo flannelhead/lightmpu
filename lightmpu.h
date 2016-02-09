@@ -92,7 +92,7 @@ const mpuconfig MPU_DEFAULT_CONFIG = {
     .lowpass = 6,
     .sampleRateDivider = 4,
     .gyroRange = 3,
-    .accelRange = 3,
+    .accelRange = 0,
     .enableInterrupt = true
 };
 
@@ -140,6 +140,12 @@ int mpuReadRawData(const uint8_t addr, int16_t * const data) {
     return 0;
 }
 
+void mpuApplyOffsets(int16_t * const data, const int16_t * const offsets) {
+    for (uint8_t i = 0; i < 7; i++) {
+        data[i] += offsets[i];
+    }
+}
+
 int mpuSetup(const uint8_t addr, const mpuconfig * const config) {
     int status;
     // Wake up and disable temperature measurement if asked for
@@ -176,7 +182,7 @@ int mpuSetup(const uint8_t addr, const mpuconfig * const config) {
 
 const int MPU_GYRO_RANGE[] = { 250, 500, 1000, 2000 };
 void mpuSetupFilter(const mpuconfig * const config, mpufilter * const filter,
-    const float filterParam = 0.08) {
+    const float filterParam = 0.05) {
     filter->dt = (float)(1 + config->sampleRateDivider) /
         (config->lowpass != 0 ? 1000 : 8000);
     filter->gyroSensitivity =
@@ -193,7 +199,7 @@ void mpuUpdatePitch(mpufilter * const filter, int16_t * const data,
     float accPitch = atan(data[MPU_ACC_X] / sqr);
     *pitch = (1 - filter->filterParam) *
         (*pitch + filter->gyroFactor * data[MPU_GYRO_Y])
-        + filter->filterParam * accPitch;
+        - filter->filterParam * accPitch;
 }
 
 void mpuUpdateRoll(mpufilter * const filter, int16_t * const data,
