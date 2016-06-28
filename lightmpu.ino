@@ -29,16 +29,17 @@
 
 #define BENCHMARK_SAMPLES 1000
 #define CALIBRATION_SAMPLES 5000
+#define ALPHA 0
 
 const int MPU_ADDR = 0x68;
 int16_t mpuData[7];
-const int16_t mpuOffsets[] = { -345, 211, 432, 0, 33, 6, 18 };
+const int16_t mpuOffsets[] = { 423, -276, 2190, 0, 55, 6, 15 };
 int32_t sums[7] = { 0 };
 volatile bool gMpuInterrupt = false;
 
-const mpuconfig mpuConfig = MPU_DEFAULT_CONFIG;
+mpuconfig mpuConfig = MPU_DEFAULT_CONFIG;
 mpufilter mpuFilter;
-float pitch = 0.0;
+int16_t pitch = 0;
 int nFrames = 0;
 unsigned long lastTime = 0;
 
@@ -47,13 +48,21 @@ void mpuInterrupt() {
 }
 
 void setup() {
-    Serial.begin(57600);
+    mpuConfig.sampleRateDivider = 0;
+    Serial.begin(115200);
     Wire.begin();
     Wire.setClock(400000L);
+    digitalWrite(SDA, LOW);
+    digitalWrite(SCL, LOW);
     mpuSetup(MPU_ADDR, &mpuConfig);
-    mpuSetupFilter(&mpuConfig, &mpuFilter);
+    mpuSetupFilter(&mpuConfig, &mpuFilter, ALPHA);
     attachInterrupt(digitalPinToInterrupt(2), mpuInterrupt, RISING);
     mpuReadIntStatus(MPU_ADDR);
+    #if MODE == 1
+        Serial.println(F("Benchmarking, please stand by..."));
+    #elif MODE == 2
+        Serial.println(F("Calibrating, please stand by..."));
+    #endif
 }
 
 void loop() {
@@ -63,15 +72,15 @@ void loop() {
         mpuReadRawData(MPU_ADDR, mpuData);
         #if MODE != 2
             mpuApplyOffsets(mpuData, mpuOffsets);
+            mpuUpdatePitch(&mpuFilter, mpuData, &pitch);
         #endif
-        mpuUpdatePitch(&mpuFilter, mpuData, &pitch);
         #if MODE == 0
             Serial.println(pitch);
         #elif MODE == 1
             nFrames++;
             if (nFrames == BENCHMARK_SAMPLES) {
                 nFrames = 0;
-                int curTime = millis();
+                unsigned long curTime = millis();
                 Serial.println(curTime - lastTime);
                 lastTime = curTime;
             }
@@ -81,7 +90,7 @@ void loop() {
                 sums[i] += mpuData[i];
             }
             if (nFrames == CALIBRATION_SAMPLES) {
-                Serial.println("Sensor offsets:");
+                Serial.println(F("Sensor offsets:"));
                 int val;
                 for (uint8_t i = 0; i < 7; i++) {
                     val = -sums[i] / CALIBRATION_SAMPLES;

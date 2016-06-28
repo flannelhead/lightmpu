@@ -33,6 +33,7 @@
 
 #define MPU_PWR_MGMT_1 0x6B
 #define MPU_TEMP_DIS bit(3)
+#define MPU_CLK_PLL_ZGYRO 3
 
 #define MPU_CONFIG 0x1A
 #define MPU_SMPRT_DIV 0x19
@@ -100,24 +101,20 @@ struct mpuconfig {
 };
 
 struct mpufilter {
-    float dt;
-    uint16_t gyroSensitivity;
-    float gyroFactor;
-    float filterParam;
+    int16_t gThresh;
+    int16_t g2;
+    int16_t gyroDivider;
+    int32_t alpha;
+    int32_t alphaComplement;
 };
 
 const mpuconfig MPU_DEFAULT_CONFIG = {
     .disableTemp = true,
-    .lowpass = 6,
+    .lowpass = 3,
     .sampleRateDivider = 4,
     .gyroRange = 3,
     .accelRange = 0,
     .enableInterrupt = true
-};
-
-struct mpudata {
-    int16_t accX, accY, accZ, temp,
-        gyroX, gyroY, gyroZ;
 };
 
 int mpuWriteRegister(const uint8_t addr, const uint8_t reg, const uint8_t value,
@@ -169,7 +166,7 @@ int mpuSetup(const uint8_t addr, const mpuconfig * const config) {
     int status;
     // Wake up and disable temperature measurement if asked for
     status = mpuWriteRegister(addr, MPU_PWR_MGMT_1,
-        config->disableTemp ? MPU_TEMP_DIS : 0, false);
+        MPU_CLK_PLL_ZGYRO | (config->disableTemp ? MPU_TEMP_DIS : 0), false);
     if (status != 0) return status;
     // Configure the low pass filter
     if (config->lowpass > 6) return -10;
@@ -194,42 +191,51 @@ int mpuSetup(const uint8_t addr, const mpuconfig * const config) {
     return status;
 }
 
-// Pitch and roll calculation by means of the complementary filter
-// NOTE: while this code doesn't depend on the DMP or the FIFO buffer,
-// you should be aware that the processor does have to keep up with the
-// sample rate in order for the calculations to be accurate.
+// Pitch and calculation by means of the complementary filter
 
-const int MPU_GYRO_RANGE[] = { 250, 500, 1000, 2000 };
+const int16_t MPU_GYRO_RANGE[] = { 250, 500, 1000, 2000 };
+const int8_t MPU_ACCEL_RANGE[] = { 2, 4, 8, 16 };
+const int16_t ANGLE_SCALE_FACTOR = 256;
 void mpuSetupFilter(const mpuconfig * const config, mpufilter * const filter,
-    const float filterParam = 0.05) {
-    filter->dt = (float)(1 + config->sampleRateDivider) /
-        (config->lowpass != 0 ? 1000 : 8000);
-    filter->gyroSensitivity =
-        32768 / (MPU_GYRO_RANGE[config->gyroRange] / 180 * PI);
-    filter->gyroFactor = filter->dt / filter->gyroSensitivity;
-    filter->filterParam = filterParam;
+    const int16_t alpha = 16) {
+    filter->alpha = alpha;
+    filter->alphaComplement = 512 - filter->alpha;
+
+    int16_t g = (INT16_MAX / MPU_ACCEL_RANGE[config->accelRange]) >> 8;
+    filter->g2 = g*g;
+    filter->gThresh = g*g * 3 / 2;
+
+    int32_t c = (int32_t)(1 + config->sampleRateDivider) * g * 314 *
+                MPU_GYRO_RANGE[config->gyroRange] / INT16_MAX,
+            d = 18000UL * 1000 / ANGLE_SCALE_FACTOR;
+    filter->gyroDivider = d / c;
 }
 
 void mpuUpdatePitch(mpufilter * const filter, int16_t * const data,
-    float * const pitch) {
-    float sqr = sqrt((int32_t)data[MPU_ACC_Y] * data[MPU_ACC_Y] +
-        (int32_t)data[MPU_ACC_Z] * data[MPU_ACC_Z]);
-    if (sqr == 0.f) return;
-    float accPitch = atan(data[MPU_ACC_X] / sqr);
-    *pitch = (1 - filter->filterParam) *
-        (*pitch + filter->gyroFactor * data[MPU_GYRO_Y])
-        - filter->filterParam * accPitch;
-}
+    int16_t * const pitch) {
+    // Use only the 8 most significant bits of the accelerometer readings to
+    // take advantage from single-instruction multiplication (muls).
+    // The readings won't have more than 8 bits of real information anyway.
+    int8_t *data8 = (int8_t*)data;
+    int8_t ax = data8[(MPU_ACC_X << 1) + 1],
+           ay = data8[(MPU_ACC_Y << 1) + 1],
+           az = data8[(MPU_ACC_Z << 1) + 1];
+    int16_t gy = data[MPU_GYRO_Y];
 
-void mpuUpdateRoll(mpufilter * const filter, int16_t * const data,
-    float * const roll) {
-    float sqr = sqrt((int32_t)data[MPU_ACC_X] * data[MPU_ACC_X] +
-        (int32_t)data[MPU_ACC_Z] * data[MPU_ACC_Z]);
-    if (sqr == 0.f) return;
-    float accPitch = atan(data[MPU_ACC_Y] / sqr);
-    *roll = (1 - filter->filterParam) *
-        (*roll + filter->gyroFactor * data[MPU_GYRO_X])
-        + filter->filterParam * accPitch;
+    int16_t ayz2 = (int16_t)(ay*ay) + (int16_t)(az*az),
+            ax2 = ax*ax, a2 = ayz2 + ax2;
+
+    int16_t gyroTerm = *pitch + gy / filter->gyroDivider;
+    int16_t accTerm = 0;
+    if (a2 < filter->gThresh) {
+        /* accTerm = (int32_t)ANGLE_SCALE_FACTOR * ax * (filter->g2 + ax2/6) / */
+        /*     filter->g2; */
+        accTerm = ANGLE_SCALE_FACTOR * ax;
+        *pitch = (filter->alphaComplement * gyroTerm -
+            filter->alpha * accTerm) / 512;
+    } else {
+        *pitch = gyroTerm;
+    }
 }
 
 #endif
