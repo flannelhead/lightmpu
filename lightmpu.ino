@@ -52,8 +52,6 @@ void setup() {
     Serial.begin(115200);
     Wire.begin();
     Wire.setClock(400000L);
-    digitalWrite(SDA, LOW);
-    digitalWrite(SCL, LOW);
     mpuSetup(MPU_ADDR, &mpuConfig);
     mpuSetupFilter(&mpuConfig, &mpuFilter, ALPHA);
     attachInterrupt(digitalPinToInterrupt(2), mpuInterrupt, RISING);
