@@ -104,8 +104,8 @@ struct mpufilter {
     int16_t gThresh;
     int16_t g2;
     int16_t gyroDivider;
-    int32_t alpha;
-    int32_t alphaComplement;
+    int16_t alpha;
+    int16_t alphaComplement;
 };
 
 const mpuconfig MPU_DEFAULT_CONFIG = {
@@ -231,8 +231,8 @@ void mpuUpdatePitch(mpufilter * const filter, int16_t * const data,
         /* accTerm = (int32_t)ANGLE_SCALE_FACTOR * ax * (filter->g2 + ax2/6) / */
         /*     filter->g2; */
         accTerm = ANGLE_SCALE_FACTOR * ax;
-        *pitch = (filter->alphaComplement * gyroTerm -
-            filter->alpha * accTerm) / 512;
+        *pitch = ((int32_t)filter->alphaComplement * gyroTerm -
+            (int32_t)filter->alpha * accTerm) / 512;
     } else {
         *pitch = gyroTerm;
     }
