@@ -191,7 +191,7 @@ int mpuSetup(const uint8_t addr, const mpuconfig * const config) {
     return status;
 }
 
-// Pitch and calculation by means of the complementary filter
+// Pitch calculation by means of the complementary filter
 
 const int16_t MPU_GYRO_RANGE[] = { 250, 500, 1000, 2000 };
 const int8_t MPU_ACCEL_RANGE[] = { 2, 4, 8, 16 };
