@@ -222,7 +222,7 @@ void mpuUpdatePitch(mpufilter * const filter, int16_t * const data,
            az = data8[(MPU_ACC_Z << 1) + 1];
     int16_t gy = data[MPU_GYRO_Y];
 
-    int16_t ayz2 = (int16_t)(ay*ay) + (int16_t)(az*az),
+    int16_t ayz2 = ay*ay + az*az,
             ax2 = ax*ax, a2 = ayz2 + ax2;
 
     int16_t gyroTerm = *pitch + gy / filter->gyroDivider;
