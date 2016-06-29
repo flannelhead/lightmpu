@@ -29,11 +29,11 @@
 
 #define BENCHMARK_SAMPLES 1000
 #define CALIBRATION_SAMPLES 5000
-#define ALPHA 0
+#define ALPHA 1
 
 const int MPU_ADDR = 0x68;
 int16_t mpuData[7];
-const int16_t mpuOffsets[] = { 423, -276, 2190, 0, 55, 6, 15 };
+const int16_t mpuOffsets[] = { 266, -239, 2528, 0, 50, 9, 13 };
 int32_t sums[7] = { 0 };
 volatile bool gMpuInterrupt = false;
 
@@ -95,7 +95,7 @@ void loop() {
                 for (uint8_t i = 0; i < 7; i++) {
                     val = -sums[i] / CALIBRATION_SAMPLES;
                     if (i == 2) val += INT16_MAX /
-                        pow(2, mpuConfig.accelRange + 1);
+                        MPU_ACCEL_RANGE[mpuConfig.accelRange];
                     Serial.print(val);
                     Serial.print(" ");
                 }
