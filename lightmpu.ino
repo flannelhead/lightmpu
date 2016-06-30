@@ -1,5 +1,5 @@
 /*
-    A lightweight Arduino library for reading and processing motion information
+    A lightweight Arduino library for reading and processing motion data
     from a MPU-6050 sensor.
     Copyright (C) 2016 Sakari Kapanen
 

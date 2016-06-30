@@ -207,7 +207,7 @@ void mpuSetupFilter(const mpuconfig * const config, mpufilter * const filter,
 
     int32_t c = (int32_t)(1 + config->sampleRateDivider) * g * 314 *
                 MPU_GYRO_RANGE[config->gyroRange] / INT16_MAX,
-            d = 18000UL * 1000 / ANGLE_SCALE_FACTOR;
+            d = 18000L * 1000 / ANGLE_SCALE_FACTOR;
     filter->gyroDivider = d / c;
 }
 
