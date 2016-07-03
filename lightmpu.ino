@@ -19,13 +19,17 @@
 
 // An example of using the lightmpu library
 
-#include <Wire.h>
+#include "i2cmaster.h"
 #include "lightmpu.h"
+
+#ifndef I2CMASTER_H
+#include <Wire.h>
+#endif
 
 // 0 = plotting
 // 1 = benchmark
 // 2 = calibration
-#define MODE 0
+#define MODE 2
 
 #define BENCHMARK_SAMPLES 1000
 #define CALIBRATION_SAMPLES 5000
@@ -50,56 +54,64 @@ void mpuInterrupt() {
 void setup() {
     mpuConfig.sampleRateDivider = 0;
     Serial.begin(115200);
+
+#ifdef I2CMASTER_H
+    i2cInit(400000L);
+#else
     Wire.begin();
     Wire.setClock(400000L);
+#endif
+
     mpuSetup(MPU_ADDR, &mpuConfig);
     mpuSetupFilter(&mpuConfig, &mpuFilter, ALPHA);
     attachInterrupt(digitalPinToInterrupt(2), mpuInterrupt, RISING);
     mpuReadIntStatus(MPU_ADDR);
-    #if MODE == 1
-        Serial.println(F("Benchmarking, please stand by..."));
-    #elif MODE == 2
-        Serial.println(F("Calibrating, please stand by..."));
-    #endif
+#if MODE == 1
+    Serial.println(F("Benchmarking, please stand by..."));
+#elif MODE == 2
+    Serial.println(F("Calibrating, please stand by..."));
+#endif
 }
 
 void loop() {
-    if (gMpuInterrupt) {
-        gMpuInterrupt = false;
-        mpuReadIntStatus(MPU_ADDR);
-        mpuReadRawData(MPU_ADDR, mpuData);
-        #if MODE != 2
-            mpuApplyOffsets(mpuData, mpuOffsets);
-            mpuUpdatePitch(&mpuFilter, mpuData, &pitch);
-        #endif
-        #if MODE == 0
-            Serial.println(pitch);
-        #elif MODE == 1
-            nFrames++;
-            if (nFrames == BENCHMARK_SAMPLES) {
-                nFrames = 0;
-                unsigned long curTime = millis();
-                Serial.println(curTime - lastTime);
-                lastTime = curTime;
-            }
-        #elif MODE == 2
-            nFrames++;
-            for (uint8_t i = 0; i < 7; i++) {
-                sums[i] += mpuData[i];
-            }
-            if (nFrames == CALIBRATION_SAMPLES) {
-                Serial.println(F("Sensor offsets:"));
-                int val;
-                for (uint8_t i = 0; i < 7; i++) {
-                    val = -sums[i] / CALIBRATION_SAMPLES;
-                    if (i == 2) val += INT16_MAX /
-                        MPU_ACCEL_RANGE[mpuConfig.accelRange];
-                    Serial.print(val);
-                    Serial.print(" ");
-                }
-                Serial.println("");
-            }
-        #endif
+    while (!gMpuInterrupt);
+    gMpuInterrupt = false;
+
+    mpuReadIntStatus(MPU_ADDR);
+    mpuReadRawData(MPU_ADDR, mpuData);
+
+#if MODE != 2
+    mpuApplyOffsets(mpuData, mpuOffsets);
+    mpuUpdatePitch(&mpuFilter, mpuData, &pitch);
+#endif
+
+#if MODE == 0
+    Serial.println(pitch);
+#elif MODE == 1
+    nFrames++;
+    if (nFrames == BENCHMARK_SAMPLES) {
+        nFrames = 0;
+        unsigned long curTime = millis();
+        Serial.println(curTime - lastTime);
+        lastTime = curTime;
     }
+#elif MODE == 2
+    nFrames++;
+    for (uint8_t i = 0; i < 7; i++) {
+        sums[i] += mpuData[i];
+    }
+    if (nFrames == CALIBRATION_SAMPLES) {
+        Serial.println(F("Sensor offsets:"));
+        int val;
+        for (uint8_t i = 0; i < 7; i++) {
+            val = -sums[i] / CALIBRATION_SAMPLES;
+            if (i == 2) val += INT16_MAX /
+                MPU_ACCEL_RANGE[mpuConfig.accelRange];
+            Serial.print(val);
+            Serial.print(" ");
+        }
+        Serial.println("");
+    }
+#endif
 }
 

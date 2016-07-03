@@ -26,7 +26,9 @@
 #ifndef LIGHTMPU_H
 #define LIGHTMPU_H
 
+#ifndef I2CMASTER_H
 #include <Wire.h>
+#endif
 
 // Register addresses and bits as per the MPU-6050 datasheet
 // http://43zrtwysvxb2gf29r5o0athu.wpengine.netdna-cdn.com/wp-content/uploads/2015/02/MPU-6000-Register-Map1.pdf
@@ -119,14 +121,29 @@ const mpuconfig MPU_DEFAULT_CONFIG = {
 
 int mpuWriteRegister(const uint8_t addr, const uint8_t reg, const uint8_t value,
     const bool stop) {
+#ifdef I2CMASTER_H
+    uint8_t regValue[] = { reg, value };
+    bool ret = i2cSendStart() && i2cTransmitTo(addr) &&
+        i2cWriteBytes(regValue, 2);
+    if (!ret || stop) i2cSendStop();
+    return ret ? 0 : -1;
+#else
     Wire.beginTransmission(addr);
     if (Wire.write(reg) != 1) return -1;
     if (Wire.write(value) != 1) return -2;
     return Wire.endTransmission(stop);
+#endif
 }
 
 int mpuReadRegisters(const uint8_t addr, const uint8_t firstReg,
     const uint8_t len, uint8_t * const data) {
+#ifdef I2CMASTER_H
+    bool ret = i2cSendStart() && i2cTransmitTo(addr) &&
+        i2cWriteBytes((uint8_t *)&firstReg, 1) && i2cSendStart() &&
+        i2cReceiveFrom(addr) && i2cReadBytes(data, len);
+    i2cSendStop();
+    return ret ? 0 : -1;
+#else
     int status;
     Wire.beginTransmission(addr);
     if (Wire.write(firstReg) != 1) return -1;
@@ -135,6 +152,7 @@ int mpuReadRegisters(const uint8_t addr, const uint8_t firstReg,
     if (Wire.requestFrom(addr, len, (uint8_t)true) != len) return -2;
     for (uint8_t i = 0; i < len; i++) data[i] = Wire.read();
     return 0;
+#endif
 }
 
 int mpuReadIntStatus(const uint8_t addr) {
@@ -144,16 +162,34 @@ int mpuReadIntStatus(const uint8_t addr) {
 }
 
 int mpuReadRawData(const uint8_t addr, int16_t * const data) {
+    uint8_t *myData = (uint8_t *)data;
+#ifdef I2CMASTER_H
+    uint8_t reg[] = { MPU_ACCEL_XOUT_H };
+    bool ret = i2cSendStart() && i2cTransmitTo(addr) &&
+        i2cWriteBytes(reg, 1) && i2cSendStart() &&
+        i2cReceiveFrom(addr);
+    for (int8_t i = 0; i < 7; i++) {
+        if (!ret) break;
+        ret = i2cReadNextByte(myData + 1, true) &&
+            i2cReadNextByte(myData, i != 6);
+        myData += 2;
+    }
+    i2cSendStop();
+    return ret ? 0 : -1;
+#else
     int status;
     Wire.beginTransmission(addr);
     if (Wire.write(MPU_ACCEL_XOUT_H) != 1) return -1;
     status = Wire.endTransmission(false);
     if (status != 0) return status;
     if (Wire.requestFrom(addr, (uint8_t)14, (uint8_t)true) != 14) return -2;
-    for (uint8_t i = 0; i < 7; i++) {
-        data[i] = Wire.read() << 8 | Wire.read();
+    for (int8_t i = 0; i < 7; i++) {
+        *(myData + 1) = Wire.read();
+        *myData = Wire.read();
+        myData += 2;
     }
     return 0;
+#endif
 }
 
 void mpuApplyOffsets(int16_t * const data, const int16_t * const offsets) {
@@ -228,9 +264,12 @@ void mpuUpdatePitch(mpufilter * const filter, int16_t * const data,
     int16_t gyroTerm = *pitch + gy / filter->gyroDivider;
     int16_t accTerm = 0;
     if (a2 < filter->gThresh) {
-        /* accTerm = (int32_t)ANGLE_SCALE_FACTOR * ax * (filter->g2 + ax2/6) / */
-        /*     filter->g2; */
+#ifdef LIGHTMPU_FIRST_ORDER
         accTerm = ANGLE_SCALE_FACTOR * ax;
+#else
+        accTerm = (int32_t)ANGLE_SCALE_FACTOR * ax * (filter->g2 + ax2/6) /
+            filter->g2;
+#endif
         *pitch = ((int32_t)filter->alphaComplement * gyroTerm -
             (int32_t)filter->alpha * accTerm) / 512;
     } else {
