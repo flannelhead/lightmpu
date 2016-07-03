@@ -264,11 +264,9 @@ void mpuUpdatePitch(mpufilter * const filter, int16_t * const data,
     int16_t gyroTerm = *pitch + gy / filter->gyroDivider;
     int16_t accTerm = 0;
     if (a2 < filter->gThresh) {
-#ifdef LIGHTMPU_FIRST_ORDER
         accTerm = ANGLE_SCALE_FACTOR * ax;
-#else
-        accTerm = (int32_t)ANGLE_SCALE_FACTOR * ax * (filter->g2 + ax2/6) /
-            filter->g2;
+#ifndef LIGHTMPU_FIRST_ORDER
+        accTerm = (int32_t)accTerm * (filter->g2 + ax2/6) / filter->g2;
 #endif
         *pitch = ((int32_t)filter->alphaComplement * gyroTerm -
             (int32_t)filter->alpha * accTerm) / 512;

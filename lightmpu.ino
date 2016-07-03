@@ -29,7 +29,7 @@
 // 0 = plotting
 // 1 = benchmark
 // 2 = calibration
-#define MODE 2
+#define MODE 0
 
 #define BENCHMARK_SAMPLES 1000
 #define CALIBRATION_SAMPLES 5000
